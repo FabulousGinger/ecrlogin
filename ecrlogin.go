@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
@@ -28,13 +27,7 @@ ecrlogin [PROFILE] [REGION]
 
 func main() {
 
-	var (
-		profile, region string
-
-		sess *session.Session
-
-		err error
-	)
+	var profile, region string
 
 	args := os.Args[1:]
 
@@ -49,66 +42,78 @@ func main() {
 		return
 	}
 
-	if os.Getenv(loadConfig) == "true" {
-		sess, err = session.NewSession(&aws.Config{
-			Credentials: credentials.NewSharedCredentials("", profile),
-		})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	} else {
-		sess, err = session.NewSession(&aws.Config{
-			Region:      aws.String(region),
-			Credentials: credentials.NewSharedCredentials("", profile),
-		})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}
-
-	svc := ecr.New(sess)
-	input := &ecr.GetAuthorizationTokenInput{}
-
-	resp, err := svc.GetAuthorizationToken(input)
+	sess, err := AWSSession(loadConfig, profile, region)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case ecr.ErrCodeServerException:
-				fmt.Println(ecr.ErrCodeServerException, aerr.Error())
-			case ecr.ErrCodeInvalidParameterException:
-				fmt.Println(ecr.ErrCodeInvalidParameterException, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			fmt.Println(aerr.Error())
-		}
-
-	}
-
-	auth := resp.AuthorizationData
-	decode, err := base64.StdEncoding.DecodeString(*auth[0].AuthorizationToken)
-	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("ERROR: %s\n", err)
 		return
 	}
 
-	token := strings.SplitN(string(decode), ":", 2)
-	user := token[0]
-	password := token[1]
-	endpoint := *auth[0].ProxyEndpoint
+	auth, err := GetECRAuth(sess)
+	if err != nil {
+		fmt.Printf("ERROR: %s\n", err)
+		return
+	}
 
-	cmd := fmt.Sprintf(dockerLogin, user, password, endpoint)
-	login := exec.Command("bash", "-c", cmd)
-	loginErr := login.Run()
-	if loginErr != nil {
-		fmt.Println(loginErr)
+	user, password, endpoint, err := GetECRInfo(auth)
+	if err != nil {
+		fmt.Printf("ERROR: %s\n", err)
+		return
+	}
+
+	err = ECRLogin(user, password, endpoint)
+	if err != nil {
+		fmt.Printf("ERROR: %s\n", err)
 		return
 	}
 
 	fmt.Printf("Login Succeeded.\n\nThe registry endpoint is:\n%s\n",
 		endpoint)
 
+}
+
+// AWSSession will create the AWS session by getting the credentials and region
+func AWSSession(loadConfig string, profile string, region string) (sess *session.Session, err error) {
+
+	if os.Getenv(loadConfig) == "true" {
+		sess, err = session.NewSession(&aws.Config{
+			Credentials: credentials.NewSharedCredentials("", profile),
+		})
+	} else {
+		sess, err = session.NewSession(&aws.Config{
+			Region:      aws.String(region),
+			Credentials: credentials.NewSharedCredentials("", profile),
+		})
+	}
+
+	return sess, err
+}
+
+// GetECRAuth will retrive the ECR authorization data from the AWS session
+func GetECRAuth(sess *session.Session) (auth []*ecr.AuthorizationData, err error) {
+	svc := ecr.New(sess)
+	input := &ecr.GetAuthorizationTokenInput{}
+	resp, err := svc.GetAuthorizationToken(input)
+	auth = resp.AuthorizationData
+
+	return auth, err
+}
+
+// GetECRInfo will get the ECR endpoint, username, and password from the ECR authorization data
+func GetECRInfo(auth []*ecr.AuthorizationData) (user string, password string, endpoint string, err error) {
+	decode, err := base64.StdEncoding.DecodeString(*auth[0].AuthorizationToken)
+	token := strings.SplitN(string(decode), ":", 2)
+	user = token[0]
+	password = token[1]
+	endpoint = *auth[0].ProxyEndpoint
+
+	return user, password, endpoint, err
+}
+
+// ECRLogin will login to the ECR using Docker and passing username, password, and endpoint
+func ECRLogin(user string, password string, endpoint string) (err error) {
+	cmd := fmt.Sprintf(dockerLogin, user, password, endpoint)
+	login := exec.Command("bash", "-c", cmd)
+	err = login.Run()
+
+	return err
 }
