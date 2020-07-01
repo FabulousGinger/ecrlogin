@@ -85,7 +85,7 @@ func AWSSession(loadConfig, profile, region string) (sess *session.Session, err 
 		})
 	}
 
-	return sess, err
+	return
 }
 
 // GetECRAuth will retrive the ECR authorization data from the AWS session
@@ -95,7 +95,7 @@ func GetECRAuth(sess *session.Session) (auth []*ecr.AuthorizationData, err error
 	resp, err := svc.GetAuthorizationToken(input)
 	auth = resp.AuthorizationData
 
-	return auth, err
+	return
 }
 
 // GetECRInfo will get the ECR endpoint, username, and password from the ECR authorization data
@@ -106,7 +106,7 @@ func GetECRInfo(auth []*ecr.AuthorizationData) (user, password, endpoint string,
 	password = token[1]
 	endpoint = *auth[0].ProxyEndpoint
 
-	return user, password, endpoint, err
+	return
 }
 
 // ECRLogin will login to the ECR using Docker and passing username, password, and endpoint
@@ -115,5 +115,5 @@ func ECRLogin(user, password, endpoint string) (err error) {
 	login := exec.Command("bash", "-c", cmd)
 	err = login.Run()
 
-	return err
+	return
 }
