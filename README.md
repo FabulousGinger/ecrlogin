@@ -48,3 +48,9 @@ Provide the profile to login to ECR.
 The region is optional and if not set the `~/.aws/config` will be loaded.
 
 `ecrlogin [PROFILE] [REGION]`
+
+## Author
+
+* **James von Hagel**
+[FabulousGinger](https://github.com/FabulousGinger)
+
