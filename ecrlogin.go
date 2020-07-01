@@ -72,7 +72,7 @@ func main() {
 }
 
 // AWSSession will create the AWS session by getting the credentials and region
-func AWSSession(loadConfig string, profile string, region string) (sess *session.Session, err error) {
+func AWSSession(loadConfig, profile, region string) (sess *session.Session, err error) {
 
 	if os.Getenv(loadConfig) == "true" {
 		sess, err = session.NewSession(&aws.Config{
@@ -99,7 +99,7 @@ func GetECRAuth(sess *session.Session) (auth []*ecr.AuthorizationData, err error
 }
 
 // GetECRInfo will get the ECR endpoint, username, and password from the ECR authorization data
-func GetECRInfo(auth []*ecr.AuthorizationData) (user string, password string, endpoint string, err error) {
+func GetECRInfo(auth []*ecr.AuthorizationData) (user, password, endpoint string, err error) {
 	decode, err := base64.StdEncoding.DecodeString(*auth[0].AuthorizationToken)
 	token := strings.SplitN(string(decode), ":", 2)
 	user = token[0]
@@ -110,7 +110,7 @@ func GetECRInfo(auth []*ecr.AuthorizationData) (user string, password string, en
 }
 
 // ECRLogin will login to the ECR using Docker and passing username, password, and endpoint
-func ECRLogin(user string, password string, endpoint string) (err error) {
+func ECRLogin(user, password, endpoint string) (err error) {
 	cmd := fmt.Sprintf(dockerLogin, user, password, endpoint)
 	login := exec.Command("bash", "-c", cmd)
 	err = login.Run()
